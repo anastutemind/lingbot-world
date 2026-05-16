@@ -201,8 +201,13 @@ async def _run_session(sock: WebSocket):
 
     async def producer():
         try:
+            n = 0
             while not state["stop"]:
+                t0 = time.time()
                 frames = await loop.run_in_executor(None, gen_blocking)
+                n += 1
+                log.info("chunk %d: %d frames in %.1fs (keys=%s)",
+                         n, len(frames), time.time() - t0, state["keys"])
                 for f in frames:
                     if state["stop"]:
                         break
