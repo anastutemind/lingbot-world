@@ -1,0 +1,5 @@
+# Web layer on top of the repo's requirements.txt (torch, opencv, etc.)
+fastapi>=0.111
+uvicorn[standard]>=0.30
+websockets>=12
+python-multipart>=0.0.9

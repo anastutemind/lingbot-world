@@ -62,6 +62,24 @@ Generated videos are written by `generate.py` / `generate_fast.py` into the
 working directory (see their `--save_file` / default output handling). Pull
 them off the pod via the RunPod file browser or `scp`.
 
+## Interactive browser world (live, steerable)
+
+`server/` adds a real-time playable experience: open a URL in your browser,
+create an environment (image + prompt), then steer with WASD/IJKL while the
+world model generates and streams video continuously.
+
+On the pod (after `runpod_setup.sh`), with an **HTTP port exposed** (e.g. 8000):
+```sh
+cd /workspace/lingbot-world
+bash runpod_serve.sh          # downloads Fast weights if needed, serves :8000
+```
+Then open `http://<pod-public-ip>:<mapped-port>/` in your browser. Controls:
+**WASD** move · **IJKL** or arrow keys look · **Esc** release. One player at a
+time (single un-batched model). Tuning via env: `LBW_SIZE` (480*832 / 720*1280),
+`LBW_T5_CPU`, `LBW_PLAY_FPS`, `LBW_PORT`. Architecture: FastAPI + WebSocket;
+`server/world_session.py` turns the causal KV-cached Fast model into a stateful,
+per-chunk steerable session; the browser absorbs latency with a jitter buffer.
+
 ## Troubleshooting
 
 - **`CUDA not available`** in setup → you booted a CPU pod; recreate with a GPU.
