@@ -26,9 +26,11 @@ Everything inside the per-chunk diffusion loop is a line-for-line port of
 generate(), so model-call semantics (kwargs, kv-cache update step) are identical.
 """
 
+import logging
 import math
 import random
 import sys
+import time
 
 import numpy as np
 import torch
@@ -44,6 +46,12 @@ from wan.utils.cam_utils import (
     get_plucker_embeddings,
 )
 from wan.utils.wasd_ijkl_to_c2ws import get_rotation_matrix
+
+_log = logging.getLogger("lbw.session")
+
+
+def _stage(msg):
+    _log.info("[start] %s", msg)
 
 # Per-latent-frame motion. One latent frame ~= 4 video frames, so these are
 # ~4x the per-video-frame constants used in wasd_ijkl_to_c2ws.generate_and_save_trajectory.
@@ -84,6 +92,8 @@ class InteractiveWorldSession:
         shift=3.0,                 # 480p recommendation from generate() docstring
         horizon_chunks=8,          # # of chunks for which the image/mask condition is built exactly
     ):
+        _stage("begin")
+        t_start = time.time()
         w = self.w
         cfg = self.cfg
         self.chunk_size = chunk_size
@@ -111,6 +121,8 @@ class InteractiveWorldSession:
         self.seed_g = torch.Generator(device=self.device)
         self.seed_g.manual_seed(seed)
 
+        _stage(f"geometry ok (lat {self.lat_h}x{self.lat_w}); encoding text "
+                f"(t5_cpu={w.t5_cpu})…")
         # ---- text context (verbatim) ----
         if not w.t5_cpu:
             w.text_encoder.model.to(self.device)
@@ -119,6 +131,7 @@ class InteractiveWorldSession:
             self.context = [t.to(self.device)
                             for t in w.text_encoder([prompt], torch.device('cpu'))]
 
+        _stage("text encoded; VAE-encoding image condition…")
         # ---- scheduler / timesteps (verbatim) ----
         w.scheduler.set_timesteps(w.num_train_timesteps, shift=shift)
         self.timesteps = w.scheduler.timesteps[self.timesteps_index]
@@ -147,6 +160,7 @@ class InteractiveWorldSession:
         self._cond_chunks = list(y.split(chunk_size, dim=1))
         self._zero_video_frames = (chunk_size - 1) * 4 + 1     # for zero extensions
 
+        _stage("image condition encoded; allocating KV caches…")
         # ---- KV caches (verbatim) ----
         m = w.model.config
         tdt = w.pipe_dtype
@@ -177,6 +191,7 @@ class InteractiveWorldSession:
         self.chunk_id = 0
         self.active = True
         self._horizon_chunks = horizon_chunks
+        _stage(f"ready in {time.time() - t_start:.1f}s")
 
     # ----------------------------------------------------- camera integration
     def _advance_camera(self, keys):
